@@ -23,9 +23,9 @@ async fn wait() {
     let between = Uniform::from(4000..9000);
     let mut rng = rand::thread_rng();
 
-    let mut futures: FuturesUnordered<BoxFuture<()>> = FuturesUnordered::new();
+    let mut futures: FuturesUnordered<BoxFuture<Result<String, String>>> = FuturesUnordered::new();
 
-    for future_number in 0..100000 {
+    for future_number in 0..1000 {
         let random_millis = between.sample(&mut rng);
         futures.push(sleep(future_number, random_millis));
     }
@@ -33,13 +33,16 @@ async fn wait() {
     futures.push(never_ends());
 
     loop {
-        if let Some(val) = futures.next().await {
-            println!("{:?}", val);
+        if let Some(result) = futures.next().await {
+            match result {
+                Ok(val) => println!("👍 {}", val),
+                Err(e) => eprintln!("👎 {}", e),
+            }
         }
     }
 }
 
-fn never_ends() -> BoxFuture<'static, ()> {
+fn never_ends() -> BoxFuture<'static, Result<String, String>> {
     async move {
         let mut tick: u64 = 0;
         let dur = Duration::from_millis(2000);
@@ -54,7 +57,7 @@ fn never_ends() -> BoxFuture<'static, ()> {
     .boxed()
 }
 
-fn sleep(num: u32, millis: u64) -> BoxFuture<'static, ()> {
+fn sleep(num: u32, millis: u64) -> BoxFuture<'static, Result<String, String>> {
     async move {
         let dur = Duration::from_millis(millis);
         tokio::time::delay_for(dur).await;
@@ -64,6 +67,11 @@ fn sleep(num: u32, millis: u64) -> BoxFuture<'static, ()> {
             millis,
             thread::current().id()
         );
+        let num_str = num.to_string();
+        match num % 2 {
+            0 => Err(num_str),
+            _ => Ok(num_str),
+        }
     }
     .boxed()
 }
